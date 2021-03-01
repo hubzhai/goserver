@@ -5,7 +5,6 @@ import (
 	"io"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/idealeak/goserver.v3/core/basic"
@@ -47,24 +46,10 @@ func (this *timeStatisticMgr) WatchStart(name string, elementype int) basic.ISta
 }
 
 func (this *timeStatisticMgr) addStatistic(name string, elementype int, d int64) {
-	this.l.RLock()
-	if te, exist := this.elements[name]; exist {
-		this.l.RUnlock()
-		times := atomic.AddInt64(&te.Times, 1)
-		total := atomic.AddInt64(&te.TotalTick, d)
-		if d > te.MaxTick {
-			atomic.StoreInt64(&te.MaxTick, d)
-			if Config.SlowMS > 0 && d >= int64(Config.SlowMS)*int64(time.Millisecond) {
-				logger.Logger.Warnf("###slow timespan name: %s  take:%s avg used:%s", strings.ToLower(te.Name), utils.ToS(time.Duration(d)), utils.ToS(time.Duration(total/times)))
-			}
-		}
-		if d < te.MinTick {
-			atomic.StoreInt64(&te.MinTick, d)
-		}
-
-	} else {
-		this.l.RUnlock()
-		te := &TimeElement{
+	this.l.Lock()
+	te, exist := this.elements[name]
+	if !exist {
+		te = &TimeElement{
 			Name:        name,
 			ElementType: elementype,
 			Times:       1,
@@ -72,10 +57,24 @@ func (this *timeStatisticMgr) addStatistic(name string, elementype int, d int64)
 			MaxTick:     d,
 			MinTick:     d,
 		}
-		this.l.Lock()
 		this.elements[name] = te
 		this.l.Unlock()
+		return
 	}
+	te.Times++
+	te.TotalTick += d
+	if d < te.MinTick {
+		te.MinTick = d
+	}
+	if d > te.MaxTick {
+		te.MaxTick = d
+		if Config.SlowMS > 0 && d >= int64(Config.SlowMS)*int64(time.Millisecond) {
+			this.l.Unlock()
+			logger.Logger.Warnf("###slow timespan name: %s  take:%s avg used:%s", strings.ToLower(te.Name), utils.ToS(time.Duration(d)), utils.ToS(time.Duration(te.TotalTick/te.Times)))
+			return
+		}
+	}
+	this.l.Unlock()
 }
 
 func (this *timeStatisticMgr) GetStats() map[string]TimeElement {

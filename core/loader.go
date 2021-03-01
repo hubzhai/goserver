@@ -14,9 +14,15 @@ type Package interface {
 	Init() error
 	io.Closer
 }
+type ConfigFileEncryptorHook interface {
+	IsCipherText([]byte) bool
+	Encrypt([]byte) []byte
+	Decrtypt([]byte) []byte
+}
 
 var packages = make(map[string]Package)
 var packagesLoaded = make(map[string]bool)
+var configFileEH ConfigFileEncryptorHook
 
 func RegistePackage(p Package) {
 	packages[p.Name()] = p
@@ -35,7 +41,9 @@ func IsPackageLoaded(name string) bool {
 	}
 	return false
 }
-
+func RegisterConfigEncryptor(h ConfigFileEncryptorHook) {
+	configFileEH = h
+}
 func LoadPackages(configFile string) {
 	//logger.Logger.Infof("Build time is: %s", BuildTime())
 	switch path.Ext(configFile) {
@@ -44,6 +52,11 @@ func LoadPackages(configFile string) {
 		if err != nil {
 			logger.Logger.Errorf("Error while reading config file %s: %s", configFile, err)
 			break
+		}
+		if configFileEH != nil {
+			if configFileEH.IsCipherText(fileBuff) {
+				fileBuff = configFileEH.Decrtypt(fileBuff)
+			}
 		}
 		var fileData interface{}
 		err = json.Unmarshal(fileBuff, &fileData)

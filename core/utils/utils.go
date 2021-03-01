@@ -3,6 +3,7 @@ package utils
 import (
 	"fmt"
 	"github.com/idealeak/goserver.v3/core/logger"
+	"runtime"
 	"time"
 )
 
@@ -61,6 +62,9 @@ func CatchPanic(f func()) (err interface{}) {
 		err = recover()
 		if err != nil {
 			logger.Logger.Warnf("%s panic: %s", f, err)
+			var buf [4096]byte
+			n := runtime.Stack(buf[:], false)
+			logger.Logger.Error("stack--->", string(buf[:n]))
 		}
 	}()
 	f()
@@ -73,6 +77,9 @@ func RunPanicless(f func()) (panicless bool) {
 		panicless = err == nil
 		if err != nil {
 			logger.Logger.Warnf("%s panic: %s", f, err)
+			var buf [4096]byte
+			n := runtime.Stack(buf[:], false)
+			logger.Logger.Error("stack--->", string(buf[:n]))
 		}
 	}()
 

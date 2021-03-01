@@ -76,6 +76,11 @@ func (af *AuthenticationFilter) OnPacketReceived(s *netlib.Session, packetid int
 				if af.SessionAuthHandler != nil {
 					af.SessionAuthHandler(s, true)
 				}
+
+				//ack 回一个
+				authAck := &protocol.SSPacketAuthAck{Msg: proto.String("ok")}
+				proto.SetDefaults(authAck)
+				s.Send(int(protocol.CoreBuiltinPacketID_PACKET_SS_AUTH_ACK), authAck, false)
 				return false
 			} else {
 				s.Close()

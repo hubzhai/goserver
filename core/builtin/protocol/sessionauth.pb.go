@@ -37,5 +37,21 @@ func (m *SSPacketAuth) GetTimestamp() int64 {
 	return 0
 }
 
+type SSPacketAuthAck struct {
+	Msg              *string `protobuf:"bytes,1,opt" json:"Msg,omitempty"`
+	XXX_unrecognized []byte  `json:"-"`
+}
+
+func (m *SSPacketAuthAck) Reset()         { *m = SSPacketAuthAck{} }
+func (m *SSPacketAuthAck) String() string { return proto.CompactTextString(m) }
+func (*SSPacketAuthAck) ProtoMessage()    {}
+
+func (m *SSPacketAuthAck) GetMsg() string {
+	if m != nil && m.Msg != nil {
+		return *m.Msg
+	}
+	return ""
+}
+
 func init() {
 }

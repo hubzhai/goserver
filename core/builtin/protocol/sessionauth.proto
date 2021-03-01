@@ -4,3 +4,7 @@ message SSPacketAuth {
 	required string AuthKey = 1;
 	required int64 Timestamp = 2;
 }
+
+message SSPacketAuthAck {
+	optional string Msg = 1;
+}

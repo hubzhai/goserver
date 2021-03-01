@@ -4,7 +4,6 @@ package netlib
 import (
 	"bytes"
 	"encoding/binary"
-	"errors"
 	"fmt"
 
 	"code.google.com/p/goprotobuf/proto"
@@ -31,16 +30,17 @@ type EncDecoder interface {
 type UnparsePacketTypeErr struct {
 	EncodeType int16
 	PacketId   int16
+	Err        error
 }
 
 type TypeTester func(pack interface{}) int
 
 func (this *UnparsePacketTypeErr) Error() string {
-	return fmt.Sprintf("cannot parse proto type:%v packetid:%v", this.EncodeType, this.PacketId)
+	return fmt.Sprintf("cannot parse proto type:%v packetid:%v err:%v", this.EncodeType, this.PacketId, this.Err)
 }
 
-func NewUnparsePacketTypeErr(et, packid int16) *UnparsePacketTypeErr {
-	return &UnparsePacketTypeErr{EncodeType: et, PacketId: packid}
+func NewUnparsePacketTypeErr(et, packid int16, err error) *UnparsePacketTypeErr {
+	return &UnparsePacketTypeErr{EncodeType: et, PacketId: packid, Err: err}
 }
 
 func UnmarshalPacket(data []byte) (int, interface{}, error) {
@@ -51,12 +51,12 @@ func UnmarshalPacket(data []byte) (int, interface{}, error) {
 	}
 
 	if ph.EncodeType >= EncodingTypeMax {
-		return int(ph.PacketId), nil, NewUnparsePacketTypeErr(ph.EncodeType, ph.PacketId)
+		return int(ph.PacketId), nil, NewUnparsePacketTypeErr(ph.EncodeType, ph.PacketId, fmt.Errorf("EncodeType:%d unregiste", ph.EncodeType))
 	}
 
 	pck := CreatePacket(int(ph.PacketId))
 	if pck == nil {
-		return int(ph.PacketId), nil, NewUnparsePacketTypeErr(ph.EncodeType, ph.PacketId)
+		return int(ph.PacketId), nil, NewUnparsePacketTypeErr(ph.EncodeType, ph.PacketId, fmt.Errorf("packetId:%d unregiste", ph.PacketId))
 	} else {
 		err = encodingArray[ph.EncodeType].Unmarshal(data[LenOfPacketHeader:], pck)
 		return int(ph.PacketId), pck, err
@@ -68,11 +68,11 @@ func UnmarshalPacket(data []byte) (int, interface{}, error) {
 func MarshalPacket(packetid int, pack interface{}) ([]byte, error) {
 	et := typetest(pack)
 	if et < EncodingTypeNil || et > EncodingTypeMax {
-		return nil, errors.New("MarshalPacket unkown data type")
+		return nil, fmt.Errorf("MarshalPacket unkown data type:%v", et)
 	}
 
 	if encodingArray[et] == nil {
-		return nil, errors.New("MarshalPacket unkown data type")
+		return nil, fmt.Errorf("MarshalPacket unkown data type:%v", et)
 	}
 
 	data, err := encodingArray[et].Marshal(pack)
@@ -94,11 +94,11 @@ func MarshalPacket(packetid int, pack interface{}) ([]byte, error) {
 func MarshalPacketNoPackId(pack interface{}) (data []byte, err error) {
 	et := typetest(pack)
 	if et < EncodingTypeNil || et > EncodingTypeMax {
-		return nil, errors.New("MarshalPacket unkown data type")
+		return nil, fmt.Errorf("MarshalPacket unkown data type:%v", et)
 	}
 
 	if encodingArray[et] == nil {
-		return nil, errors.New("MarshalPacket unkown data type")
+		return nil, fmt.Errorf("MarshalPacket unkown data type:%v", et)
 	}
 
 	data, err = encodingArray[et].Marshal(pack)
@@ -125,10 +125,13 @@ func UnmarshalPacketNoPackId(data []byte, pck interface{}) error {
 	}
 
 	if ph.EncodeType >= EncodingTypeMax {
-		return NewUnparsePacketTypeErr(ph.EncodeType, ph.PacketId)
+		return NewUnparsePacketTypeErr(ph.EncodeType, ph.PacketId, fmt.Errorf("EncodeType:%d unregiste", ph.EncodeType))
 	}
 
 	err = encodingArray[ph.EncodeType].Unmarshal(data[LenOfPacketHeader:], pck)
+	if err != nil {
+		return NewUnparsePacketTypeErr(ph.EncodeType, ph.PacketId, err)
+	}
 	return err
 }
 

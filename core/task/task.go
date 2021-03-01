@@ -1,6 +1,7 @@
 package task
 
 import (
+	"runtime"
 	"sync/atomic"
 	"time"
 
@@ -11,7 +12,6 @@ import (
 	"github.com/idealeak/goserver.v3/core/container/recycler"
 	"github.com/idealeak/goserver.v3/core/logger"
 	"github.com/idealeak/goserver.v3/core/profile"
-	"github.com/idealeak/goserver.v3/core/utils"
 )
 
 type Callable interface {
@@ -123,9 +123,13 @@ func (t *Task) PutEnv(k, v interface{}) bool {
 func (t *Task) run(o *basic.Object) (e error) {
 	watch := profile.TimeStatisticMgr.WatchStart(fmt.Sprintf("/task/%v/run", t.name), profile.TIME_ELEMENT_TASK)
 	defer func() {
-		utils.DumpStackIfPanic("Task::run")
 		if watch != nil {
 			watch.Stop()
+		}
+		if err := recover(); err != nil {
+			var buf [4096]byte
+			n := runtime.Stack(buf[:], false)
+			logger.Logger.Error("Task::run stack--->", string(buf[:n]))
 		}
 	}()
 
@@ -168,13 +172,21 @@ func (t *Task) GetRunTime() time.Duration {
 }
 
 func (t *Task) StartByExecutor(name string) bool {
-	return sendTaskReqToExecutor(t, name)
+	return sendTaskReqToExecutor(t, name, "")
 }
 
 func (t *Task) StartByFixExecutor(name string) bool {
-	return sendTaskReqToFixExecutor(t, name)
+	return sendTaskReqToFixExecutor(t, name, "")
 }
 
 func (t *Task) BroadcastToAllExecutor() bool {
 	return sendTaskReqToAllExecutor(t)
+}
+
+func (t *Task) StartByGroupExecutor(gname string, name string) bool {
+	return sendTaskReqToExecutor(t, name, gname)
+}
+
+func (t *Task) StartByGroupFixExecutor(name, gname string) bool {
+	return sendTaskReqToFixExecutor(t, name, gname)
 }

@@ -56,7 +56,7 @@ func (this *SignalHandler) UnregisteHandler(s os.Signal, h Handler) error {
 	this.lock.Lock()
 	defer this.lock.Unlock()
 	if v, ok := this.mh[s]; ok {
-		if _, has := v[h]; !has {
+		if _, has := v[h]; has {
 			delete(v, h)
 		}
 	}
@@ -84,15 +84,22 @@ func (this *SignalHandler) ProcessSignal() {
 				logger.Logger.Trace("(this *SignalHandler) ProcessSignal() quit!!!")
 				return
 			}
-			logger.Logger.Warn("-------->receive Signal:", s)
+			//logger.Logger.Warn("-------->receive Signal:", s)
+			handlers := map[Handler]interface{}{}
 			this.lock.RLock()
-			defer this.lock.RUnlock()
-			if v, ok := this.mh[s]; ok {
+			v, ok := this.mh[s]
+			if ok && len(v) > 0 {
 				for hk, hv := range v {
+					handlers[hk] = hv
+				}
+			}
+			this.lock.RUnlock()
+			if ok && len(handlers) > 0 {
+				for hk, hv := range handlers {
 					utils.CatchPanic(func() { hk.Process(s, hv) })
 				}
-			} else {
-				logger.Logger.Warn("-------->UnHandle Signal:", s)
+			//} else {
+			//	logger.Logger.Warn("-------->UnHandle Signal:", s)
 			}
 		}
 	}

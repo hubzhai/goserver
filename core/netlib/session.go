@@ -65,8 +65,8 @@ type Session struct {
 	closed      int32
 	sendedBytes int64
 	recvedBytes int64
-	sendedPack int64
-	recvedPack int64
+	sendedPack  int64
+	recvedPack  int64
 	quit        bool
 	shutSend    bool
 	shutRecv    bool

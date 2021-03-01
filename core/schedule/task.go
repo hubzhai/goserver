@@ -447,6 +447,7 @@ func run() {
 		} else {
 			effective = sortList.Vals[0].GetNext()
 		}
+
 		select {
 		case now = <-time.After(effective.Sub(now)):
 			// Run every entry whose next time was this effective time.
@@ -460,6 +461,7 @@ func run() {
 			}
 			continue
 		case <-resume:
+			now = time.Now().Local()
 			continue
 		case <-stop:
 			return
@@ -480,6 +482,12 @@ func AddTask(taskname string, t Tasker) {
 	case resume <- true:
 	default:
 	}
+}
+
+func DelTask(taskname string) {
+	lock.Lock()
+	delete(adminTaskList, taskname)
+	lock.Unlock()
 }
 
 //sort map for tasker

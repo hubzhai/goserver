@@ -52,6 +52,7 @@ type ModuleMgr struct {
 	waitShut      bool
 	currTimeSec   int64
 	currTimeNano  int64
+	currTime      time.Time
 }
 
 func newModuleMgr() *ModuleMgr {
@@ -64,6 +65,10 @@ func newModuleMgr() *ModuleMgr {
 	}
 
 	return mm
+}
+
+func (this *ModuleMgr) GetCurrTime() time.Time {
+	return this.currTime
 }
 
 func (this *ModuleMgr) GetCurrTimeSec() int64 {
@@ -170,7 +175,7 @@ func (this *ModuleMgr) init() {
 	for e := this.modules.Front(); e != nil; e = e.Next() {
 		if me, ok := e.Value.(*ModuleEntity); ok && !me.quited {
 			logger.Logger.Infof("module [%16s] init...", me.module.ModuleName())
-			me.module.Init()
+			me.safeInit()
 			logger.Logger.Infof("module [%16s] init[ok]", me.module.ModuleName())
 		}
 	}
@@ -179,6 +184,7 @@ func (this *ModuleMgr) init() {
 
 func (this *ModuleMgr) update() {
 	nowTime := time.Now()
+	this.currTime = nowTime
 	this.currTimeSec = nowTime.Unix()
 	this.currTimeNano = nowTime.UnixNano()
 	for e := this.modules.Front(); e != nil; e = e.Next() {
@@ -270,6 +276,11 @@ func (this *ModuleMgr) GetModuleByName(name string) Module {
 		return me.module
 	}
 	return nil
+}
+
+func (this *ModuleEntity) safeInit() {
+	defer utils.DumpStackIfPanic("ModuleEntity.safeInit")
+	this.module.Init()
 }
 
 func (this *ModuleEntity) safeUpt(nowTime time.Time) {

@@ -15,17 +15,42 @@ var (
 type taskReqCommand struct {
 	t *Task
 	n string
+	g string
 }
 
 func (trc *taskReqCommand) Done(o *basic.Object) error {
 	defer o.ProcessSeqnum()
 
-	workerName, err := TaskExecutor.c.Get(trc.n)
-	if err != nil {
-		logger.Logger.Debug("taskReqCommand done error:", err)
-		return err
+	var err error
+	var workerName string
+	var worker *Worker
+	if trc.g == "" {
+		workerName, err = TaskExecutor.c.Get(trc.n)
+		if err != nil {
+			logger.Logger.Debug("taskReqCommand done error:", err)
+			return err
+		}
+		worker = TaskExecutor.getWorker(workerName)
+	} else {
+		if wg, exist := TaskExecutor.getGroup(trc.g); wg != nil && exist {
+			workerName, err = wg.c.Get(trc.n)
+			if err != nil {
+				logger.Logger.Debug("taskReqCommand done error:", err)
+				return err
+			}
+			worker = wg.getWorker(workerName)
+		} else {
+			wg := TaskExecutor.AddGroup(trc.g)
+			if wg != nil {
+				workerName, err = wg.c.Get(trc.n)
+				if err != nil {
+					logger.Logger.Debug("taskReqCommand done error:", err)
+					return err
+				}
+				worker = wg.getWorker(workerName)
+			}
+		}
 	}
-	worker := TaskExecutor.getWorker(workerName)
 	if worker != nil {
 		logger.Logger.Debug("task[", trc.n, "] dispatch-> worker[", workerName, "]")
 		ste := SendTaskExe(worker.Object, trc.t)
@@ -39,9 +64,10 @@ func (trc *taskReqCommand) Done(o *basic.Object) error {
 		logger.Logger.Debugf("[%v] worker is no found.", workerName)
 		return TaskErr_CannotFindWorker
 	}
+
 }
 
-func sendTaskReqToExecutor(t *Task, name string) bool {
+func sendTaskReqToExecutor(t *Task, name string, gname string) bool {
 	if t == nil {
 		logger.Logger.Debug("sendTaskReqToExecutor error,t is nil")
 		return false
@@ -50,21 +76,41 @@ func sendTaskReqToExecutor(t *Task, name string) bool {
 		logger.Logger.Error(name, " You must specify the source object task.")
 		return false
 	}
-	return TaskExecutor.SendCommand(&taskReqCommand{t: t, n: name}, true)
+	return TaskExecutor.SendCommand(&taskReqCommand{t: t, n: name, g: gname}, true)
 }
 
 type fixTaskReqCommand struct {
 	t *Task
 	n string
+	g string
 }
 
 func (trc *fixTaskReqCommand) Done(o *basic.Object) error {
 	defer o.ProcessSeqnum()
 
-	worker := TaskExecutor.getFixWorker(trc.n)
-	if worker == nil {
-		worker = TaskExecutor.addFixWorker(trc.n)
+	var worker *Worker
+	if trc.g == "" {
+		worker = TaskExecutor.getFixWorker(trc.n)
+		if worker == nil {
+			worker = TaskExecutor.addFixWorker(trc.n)
+		}
+	} else {
+		if wg, ok := TaskExecutor.getGroup(trc.g); ok && wg != nil {
+			worker = wg.getFixWorker(trc.n)
+			if worker == nil {
+				worker = wg.addFixWorker(trc.n)
+			}
+		} else {
+			wg := TaskExecutor.AddGroup(trc.g)
+			if wg != nil {
+				worker = wg.getFixWorker(trc.n)
+				if worker == nil {
+					worker = wg.addFixWorker(trc.n)
+				}
+			}
+		}
 	}
+
 	if worker != nil {
 		logger.Logger.Debug("task[", trc.n, "] dispatch-> worker[", trc.n, "]")
 		ste := SendTaskExe(worker.Object, trc.t)
@@ -80,7 +126,7 @@ func (trc *fixTaskReqCommand) Done(o *basic.Object) error {
 	}
 }
 
-func sendTaskReqToFixExecutor(t *Task, name string) bool {
+func sendTaskReqToFixExecutor(t *Task, name, gname string) bool {
 	if t == nil {
 		logger.Logger.Warn("sendTaskReqToExecutor error,t is nil")
 		return false
@@ -89,7 +135,7 @@ func sendTaskReqToFixExecutor(t *Task, name string) bool {
 		logger.Logger.Error(name, " You must specify the source object task.")
 		return false
 	}
-	return TaskExecutor.SendCommand(&fixTaskReqCommand{t: t, n: name}, true)
+	return TaskExecutor.SendCommand(&fixTaskReqCommand{t: t, n: name, g: gname}, true)
 }
 
 type broadcastTaskReqCommand struct {
